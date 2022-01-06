@@ -324,6 +324,7 @@ name = "memo"
 version = "0.1.0"
 dependencies = [
  "discord",
+ "rand 0.8.4",
 ]
 
 [[package]]

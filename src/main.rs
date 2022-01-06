@@ -1,3 +1,5 @@
+mod roll;
+
 use std::env;
 use discord::Discord;
 use discord::model::Event;
@@ -13,14 +15,17 @@ fn main() {
     loop {
         match connection.recv_event() {
             Ok(Event::MessageCreate(message)) => {
-                println!("{} says: {}", message.author.name, message.content);
-                if message.content == "!test" {
-                    let _ = discord.send_message(
-                        message.channel_id,
-                        "This is a reply to the test.",
-                        "",
-                        false,
-                    );
+                if message.author.name == "aria_memo" { continue }
+                match roll::roll(&message.content) {
+                    Ok(roll_message) => {
+                        discord.send_message(
+                            message.channel_id,
+                            &*format!("{} {}", message.author.mention().to_string(), roll_message),
+                            "",
+                            false,
+                        );
+                    }
+                    Err(_) => {}
                 }
             }
             Ok(_) => {}
