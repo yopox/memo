@@ -1,6 +1,7 @@
 use strum::{EnumIter, IntoEnumIterator};
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, PartialEq, EnumIter)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, EnumIter, Hash)]
 pub enum Carac {
     Force,
     Dexterite,
@@ -17,9 +18,9 @@ impl Carac {
             Carac::Endurance => "end",
             Carac::Intelligence => "int",
             Carac::Charisme => "cha"
-        }
+        };
     }
-    
+
     pub fn from_abbr(abbr: &str) -> Option<Carac> {
         for carac in Carac::iter() {
             if carac.get_abbr() == abbr { return Some(carac); }
@@ -40,7 +41,7 @@ impl ToString for Carac {
     }
 }
 
-#[derive(Debug, PartialEq, EnumIter)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, EnumIter, Hash)]
 pub enum Competence {
     Artisanat,
     CombatDistance,
@@ -112,7 +113,7 @@ impl Competence {
             Competence::Soigner => "so",
             Competence::Survie => "su",
             Competence::Voler => "vo",
-        }
+        };
     }
 
     pub fn from_abbr(abbr: &str) -> Option<Competence> {
@@ -139,7 +140,7 @@ impl ToString for Competence {
             Competence::LireEcrire => format!("[{}] Lire Écrire", Competence::LireEcrire.get_abbr()),
             Competence::MentirConvaincre => format!("[{}] Mentir Convaincre", Competence::MentirConvaincre.get_abbr()),
             Competence::Perception => format!("[{}] Perception", Competence::Perception.get_abbr()),
-            Competence::Piloter =>  format!("[{}] Piloter", Competence::Piloter.get_abbr()),
+            Competence::Piloter => format!("[{}] Piloter", Competence::Piloter.get_abbr()),
             Competence::Psychologie => format!("[{}] Psychologie", Competence::Psychologie.get_abbr()),
             Competence::Reflexes => format!("[{}] Réflexes", Competence::Reflexes.get_abbr()),
             Competence::SerrurePieges => format!("[{}] Serrures et Pièges", Competence::SerrurePieges.get_abbr()),

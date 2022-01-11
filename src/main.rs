@@ -1,5 +1,6 @@
 mod roll;
 mod stats;
+mod players;
 
 use std::env;
 use discord::Discord;
