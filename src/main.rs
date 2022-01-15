@@ -4,7 +4,7 @@ mod players;
 
 use std::env;
 use discord::Discord;
-use discord::model::Event;
+use discord::model::{Event, Message};
 
 fn main() {
     let discord = Discord::from_bot_token(&env::var("DISCORD_TOKEN").expect("Expected token"))
@@ -18,17 +18,7 @@ fn main() {
         match connection.recv_event() {
             Ok(Event::MessageCreate(message)) => {
                 if message.author.name == "aria_memo" { continue }
-                match roll::roll(&message.content) {
-                    Ok(roll_message) => {
-                        discord.send_message(
-                            message.channel_id,
-                            &*format!("{} {}", message.author.mention().to_string(), roll_message),
-                            "",
-                            false,
-                        );
-                    }
-                    Err(_) => {}
-                }
+                parse_message(message, &discord)
             }
             Ok(_) => {}
             Err(discord::Error::Closed(code, body)) => {
@@ -40,3 +30,33 @@ fn main() {
     }
 }
 
+fn parse_message(message: Message, discord: &Discord) {
+    let content = message.content.clone();
+    let command = content.split_whitespace().nth(0);
+    if command.is_none() { return; }
+    let command = command.unwrap();
+
+    match command {
+        "roll" => roll(message, discord),
+        "test" => test(message, discord),
+        _ => {}
+    }
+}
+
+fn roll(message: Message, discord: &Discord) {
+    match roll::roll(&message.content.strip_prefix("roll").unwrap().to_string()) {
+        Ok(roll_message) => {
+            discord.send_message(
+                message.channel_id,
+                &*format!("{} {}", message.author.mention().to_string(), roll_message),
+                "",
+                false,
+            );
+        }
+        Err(_) => {}
+    }
+}
+
+fn test(message: Message, discord: &Discord) {
+
+}

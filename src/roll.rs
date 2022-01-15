@@ -1,9 +1,35 @@
 use rand::prelude::*;
 
+#[derive(Clone, Copy, Debug)]
+enum Operation {
+    Add,
+    Substract,
+    Multiply
+}
+
+impl Operation {
+    fn symbol(&self) -> String {
+        match self {
+            Operation::Add => " + ".to_string(),
+            Operation::Substract => " - ".to_string(),
+            Operation::Multiply => " * ".to_string(),
+        }
+    }
+
+    fn from_char(c: char) -> Option<Self> {
+        match c {
+            '+' => Some(Operation::Add),
+            '-' => Some(Operation::Substract),
+            '*' => Some(Operation::Multiply),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 enum RollExp {
-    Dice(i32, i32),
-    Add(i32),
-    Factor(i32),
+    Number(Operation, i32),
+    Dice(Operation, i32, i32),
 }
 
 fn compute(expression: Vec<RollExp>) -> (i32, String) {
@@ -12,37 +38,33 @@ fn compute(expression: Vec<RollExp>) -> (i32, String) {
     let mut rng = rand::thread_rng();
 
     for subroll in expression.iter() {
-        match *subroll {
-            RollExp::Dice(nb, dice) => {
+        match subroll {
+            RollExp::Dice(op, nb, dice) => {
                 let mut subtext = String::new();
-                for _ in 0..nb {
-                    let roll = rng.gen_range(1..=dice);
-                    result += roll;
+                let mut rolled: i32 = 0;
+                for _ in 0..*nb {
+                    let roll = rng.gen_range(1..=*dice);
+                    rolled += roll;
                     subtext = format!("{}{}{}", subtext, if subtext.is_empty() { "" } else { " + " }, roll);
                 }
-                if nb > 1 {
-                    text = format!("{}{}{} ({})", text,
-                                   if text.is_empty() { "" } else { " + " },
-                                   result, subtext);
-                } else {
-                    text = format!("{}{}{}", text,
-                                   if text.is_empty() { "" } else { " + " },
-                                   result);
+                let symbol = if text.is_empty() { "".to_string() } else { op.symbol() };
+                let details = if *nb > 1 { format!(" ({subtext})") } else { "".to_string() };
+                text = format!("{text}{symbol}{rolled}{details}");
+                match op {
+                    Operation::Add => result += rolled,
+                    Operation::Substract => result -= rolled,
+                    Operation::Multiply => result *= rolled,
                 }
             }
-            RollExp::Add(constant) => {
-                result += constant;
-                if text.is_empty() {
-                    text = format!("{}", constant);
-                } else {
-                    text = format!("{} {} {}", text,
-                                   if constant >= 0 { "+" } else { "-" },
-                                   if constant >= 0 { constant } else { constant * -1 });
+            RollExp::Number(op, nb) => {
+                match op {
+                    Operation::Add => result += *nb,
+                    Operation::Substract => result -= *nb,
+                    Operation::Multiply => result *= *nb,
                 }
-            }
-            RollExp::Factor(constant) => {
-                result *= constant;
-                text = format!("{} * {}", text, constant);
+                text = format!("{}{}{}", text,
+                               if text.is_empty() { "".to_string() } else { op.symbol() },
+                               nb);
             }
         }
     }
@@ -50,32 +72,21 @@ fn compute(expression: Vec<RollExp>) -> (i32, String) {
     return (result, text);
 }
 
-enum ParseState {
-    INIT,
-    NB,
-    D,
-    MINUS,
-    PLUS,
-    TIMES,
-}
-
 enum ParseElement {
-    Char(char),
+    Character(char),
     Number(i32),
 }
 
 fn parse(str: &String) -> Result<Vec<RollExp>, String> {
-    let mut expression = Vec::new();
-
     let mut buffer: i32 = 0;
     let mut elements = Vec::new();
     for (i, char) in str.chars().enumerate() {
         match char {
             ' ' => {}
-            'd' => elements.push(ParseElement::Char('d')),
-            '+' => elements.push(ParseElement::Char('+')),
-            '*' => elements.push(ParseElement::Char('*')),
-            '-' => elements.push(ParseElement::Char('-')),
+            'd' => elements.push(ParseElement::Character('d')),
+            '+' => elements.push(ParseElement::Character('+')),
+            '*' => elements.push(ParseElement::Character('*')),
+            '-' => elements.push(ParseElement::Character('-')),
             '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
                 buffer = buffer * 10 + char.to_digit(10).unwrap() as i32;
                 if str.chars().nth(i + 1).is_none() || !str.chars().nth(i + 1).unwrap().is_numeric() {
@@ -87,72 +98,53 @@ fn parse(str: &String) -> Result<Vec<RollExp>, String> {
         }
     }
 
-    let mut state = ParseState::INIT;
-    let mut buffer: i32 = 0;
+    let mut expression = Vec::new();
+    let mut lastOperation = Operation::Add;
 
-    for element in elements {
-        match state {
-            ParseState::INIT => match element {
-                ParseElement::Char('+') => state = ParseState::PLUS,
-                ParseElement::Char('*') => state = ParseState::TIMES,
-                ParseElement::Char('-') => state = ParseState::MINUS,
-                ParseElement::Char('d') => {
-                    buffer = 1;
-                    state = ParseState::D;
-                }
-                ParseElement::Number(nb) => {
-                    buffer = nb;
-                    state = ParseState::NB;
-                }
-                _ => return Err(format!("Bad expression."))
-            }
-            ParseState::NB => match element {
-                ParseElement::Char('+') => {
-                    expression.push(RollExp::Add(buffer));
-                    state = ParseState::PLUS;
-                },
-                ParseElement::Char('*') => {
-                    expression.push(RollExp::Add(buffer));
-                    state = ParseState::TIMES
-                },
-                ParseElement::Char('-') => {
-                    expression.push(RollExp::Add(buffer));
-                    state = ParseState::MINUS
-                },
-                ParseElement::Char('d') => state = ParseState::D,
-                _ => return Err(format!("Bad expression."))
-            }
-            ParseState::D => match element {
-                ParseElement::Number(nb) => {
-                    if buffer > 0 {
-                        expression.push(RollExp::Dice(buffer, nb));
+    for (i, elem) in elements.iter().enumerate() {
+        match elem {
+            ParseElement::Character('d') => {
+                let n1 = if i == 0 { 1 } else {
+                    match elements.get(i - 1) {
+                        Some(ParseElement::Number(n)) => *n,
+                        _ => 1
                     }
-                    if buffer > 500 { return Err(format!("Dice number too high.")) }
-                    state = ParseState::INIT;
-                }
-                _ => return Err(format!("Bad expression."))
+                };
+                let n2 = match elements.get(i + 1) {
+                    Some(ParseElement::Number(n)) => *n,
+                    _ => return Err("Dice value expected".to_string())
+                };
+                expression.push(RollExp::Dice(lastOperation, n1, n2));
             }
-            ParseState::MINUS => match element {
-                ParseElement::Number(nb) => {
-                    expression.push(RollExp::Add(nb * -1));
-                    state = ParseState::INIT;
+            ParseElement::Character(c) => {
+                lastOperation = match Operation::from_char(*c) {
+                    Some(op) => op,
+                    _ => return Err("Invalid operation".to_string())
+                };
+                match elements.get(i + 1) {
+                    Some(ParseElement::Character('d')) => continue,
+                    _ => {},
                 }
-                _ => return Err(format!("Bad expression."))
-            }
-            ParseState::PLUS => match element {
-                ParseElement::Number(nb) => {
-                    expression.push(RollExp::Add(nb));
-                    state = ParseState::INIT;
+                match elements.get(i + 2) {
+                    Some(ParseElement::Character('d')) => continue,
+                    _ => {
+                        let n = match elements.get(i + 1) {
+                            Some(ParseElement::Number(n)) => *n,
+                            _ => return Err("Number expected".to_string())
+                        };
+                        expression.push(RollExp::Number(lastOperation, n));
+                    }
                 }
-                _ => return Err(format!("Bad expression."))
             }
-            ParseState::TIMES => match element {
-                ParseElement::Number(nb) => {
-                    expression.push(RollExp::Factor(nb));
-                    state = ParseState::INIT;
+            ParseElement::Number(nb) => {
+                if i == 0 {
+                    match elements.get(i + 1) {
+                        Some(ParseElement::Character('d')) => continue,
+                        _ => expression.push(RollExp::Number(lastOperation, *nb)),
+                    }
                 }
-                _ => return Err(format!("Bad expression."))
             }
+            _ => return Err("Can't parse expression".to_string())
         }
     }
 
